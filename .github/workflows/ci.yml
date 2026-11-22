@@ -1,0 +1,48 @@
+name: Build & Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-windows:
+    name: Windows (MSVC)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure CMake
+        run: >
+          cmake -S . -B build
+          -DCMAKE_POLICY_DEFAULT_CMP0091=NEW
+          -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
+
+      - name: Build Release
+        run: cmake --build build --config Release --parallel
+
+      - name: Run self-tests
+        run: ctest --test-dir build -C Release --output-on-failure
+
+  build-linux:
+    name: Linux (GCC)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install OpenGL and FreeGLUT dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake freeglut3-dev libglu1-mesa-dev
+
+      - name: Configure CMake
+        run: cmake -S . -B build -DTEA_FETCH_FREEGLUT=OFF -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build Release
+        run: cmake --build build --parallel
+
+      - name: Run self-tests
+        run: ctest --test-dir build --output-on-failure

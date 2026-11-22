@@ -58,6 +58,6 @@ Arrays are allocated once and recycled. Particles reset after reaching the groun
 
 ## Source guide
 
-`main.cpp` retains the original environment and campaign. It includes `LivingWorld.h` for new data and function declarations, and `LivingWorld.inl` for implementation. This keeps one compilation unit while separating the new code into readable sections. Keep these files and Homestead.h / Homestead.inl and Disaster.h / Disaster.inl together when copying the source to another computer.
+`src/main.cpp` retains the original environment and campaign. It includes `LivingWorld.h` for new data and function declarations, and `LivingWorld.inl` for implementation. This keeps one compilation unit while separating the new code into readable sections. Keep all files inside `src/` (`main.cpp`, `LivingWorld.*`, `Homestead.*`, and `Disaster.*`) together when copying the source to another computer.
 
 The main functions to explain during a viva are `updateHuman()`, `planWalk()`, `updateFollowCamera()`, `animateSit()`, `animateDrink()`, `drawHuman()`, `drawArm()`, `drawLeg()` and `updateAtmosphere()`.

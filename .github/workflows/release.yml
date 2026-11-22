@@ -1,0 +1,164 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag name (e.g. v4.0.0)'
+        required: true
+        default: 'v4.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  package-windows:
+    name: Package Windows x64
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Determine release tag
+        id: meta
+        shell: pwsh
+        run: |
+          $tag = if ("${{ github.event_name }}" -eq "workflow_dispatch") { "${{ inputs.tag }}" } else { "${{ github.ref_name }}" }
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+
+      - name: Configure CMake
+        run: >
+          cmake -S . -B build
+          -DCMAKE_POLICY_DEFAULT_CMP0091=NEW
+          -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
+
+      - name: Build Release
+        run: cmake --build build --config Release --parallel
+
+      - name: Run self-tests
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Stage Windows package
+        shell: pwsh
+        run: |
+          $tag = "${{ steps.meta.outputs.tag }}"
+          $pkgName = "A-Last-Cup-of-Tea-$tag-windows-x64"
+          $stage = "release-artifacts/$pkgName"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+
+          Copy-Item "build/Release/last_cup.exe" -Destination $stage
+          Copy-Item "build/Release/last_cup.exe" -Destination "release-artifacts/last_cup.exe"
+          Copy-Item "Play.cmd" -Destination $stage
+          Copy-Item "README.md" -Destination $stage
+          Copy-Item "LICENSE" -Destination $stage
+          Copy-Item "docs/THIRD_PARTY.md" -Destination $stage
+
+          if (Test-Path "build/_deps/freeglut-src/COPYING") {
+            Copy-Item "build/_deps/freeglut-src/COPYING" -Destination "$stage/FreeGLUT-LICENSE.txt"
+          }
+
+          Compress-Archive -Path $stage -DestinationPath "release-artifacts/$pkgName.zip" -CompressionLevel Optimal
+          Remove-Item -Recurse -Force $stage
+
+      - name: Upload Windows release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: release-artifacts/*
+
+  package-linux:
+    name: Package Linux x64
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Determine release tag
+        id: meta
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install OpenGL and FreeGLUT dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake freeglut3-dev libglu1-mesa-dev
+
+      - name: Configure CMake
+        run: cmake -S . -B build -DTEA_FETCH_FREEGLUT=OFF -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build Release
+        run: cmake --build build --parallel
+
+      - name: Run self-tests
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Stage Linux package
+        run: |
+          TAG="${{ steps.meta.outputs.tag }}"
+          PKG="A-Last-Cup-of-Tea-${TAG}-linux-x64"
+          mkdir -p "release-artifacts/${PKG}"
+          cp build/last_cup "release-artifacts/${PKG}/"
+          cp README.md LICENSE docs/THIRD_PARTY.md "release-artifacts/${PKG}/"
+          tar -czf "release-artifacts/${PKG}.tar.gz" -C release-artifacts "${PKG}"
+          rm -rf "release-artifacts/${PKG}"
+
+      - name: Upload Linux release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-release
+          path: release-artifacts/*.tar.gz
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: [package-windows, package-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine release tag
+        id: meta
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist-release
+          merge-multiple: true
+
+      - name: Generate SHA256 checksums
+        run: |
+          cd dist-release
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: A Last Cup of Tea ${{ steps.meta.outputs.tag }}
+          generate_release_notes: true
+          body: |
+            ## A Last Cup of Tea — 3D OpenGL Simulation (${{ steps.meta.outputs.tag }})
+
+            ### Downloads
+            - **Windows (Portable Package):** Download `A-Last-Cup-of-Tea-${{ steps.meta.outputs.tag }}-windows-x64.zip`, extract it, and double-click `Play.cmd` (or `last_cup.exe`).
+            - **Windows (Standalone Executable):** Download `last_cup.exe` directly (64-bit Windows, OpenGL-capable graphics driver required).
+            - **Linux (x64):** Download `A-Last-Cup-of-Tea-${{ steps.meta.outputs.tag }}-linux-x64.tar.gz` (requires `freeglut3` and `libglu1-mesa`).
+
+            ### Highlights
+            - Complete 3D procedural valley built in C++17 with OpenGL, GLU, and FreeGLUT (no external models or textures).
+            - Articulated human protagonist, tea-drinking animation, four seasons, and six weather states.
+            - Walkable furnished house with automatic front door, first-person view, and fenced cow farm.
+            - Full interactive disaster sequence triggered by the emergency baton.
+            - Verified with 144 automated simulation self-tests (`--self-test`).
+          files: dist-release/*

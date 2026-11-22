@@ -1,7 +1,27 @@
-.tools/
+# Build artifacts
 build/
+build-*/
 dist/
 *.o
 *.obj
+*.exe
+*.out
 *.ppm
-/A-Last-Cup-of-Tea.zip
+
+# Local portable toolchains
+.tools/
+
+# Release archives
+*.zip
+*.tar.gz
+
+# IDE / editor files
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.sln
+*.vcxproj*
+.DS_Store
+Thumbs.db

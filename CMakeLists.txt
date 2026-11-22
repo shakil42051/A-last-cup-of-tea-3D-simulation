@@ -1,12 +1,17 @@
 cmake_minimum_required(VERSION 3.16)
-project(A_Last_Cup_of_Tea VERSION 4.0 LANGUAGES C CXX)
+project(A_Last_Cup_of_Tea VERSION 4.0.0 LANGUAGES C CXX)
+
 if(POLICY CMP0135)
   cmake_policy(SET CMP0135 NEW)
 endif()
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 option(TEA_FETCH_FREEGLUT "Build the pinned FreeGLUT source" ON)
+
 find_package(OpenGL REQUIRED)
+
 if(TEA_FETCH_FREEGLUT)
   include(FetchContent)
   set(FREEGLUT_BUILD_DEMOS OFF CACHE BOOL "" FORCE)
@@ -29,20 +34,62 @@ else()
   find_package(GLUT REQUIRED)
   set(TEA_GLUT GLUT::GLUT)
 endif()
-add_executable(last_cup main.cpp LivingWorld.h LivingWorld.inl Homestead.h Homestead.inl Disaster.h Disaster.inl)
-set_source_files_properties(LivingWorld.inl Homestead.inl Disaster.inl PROPERTIES HEADER_FILE_ONLY TRUE)
+
+add_executable(last_cup
+  src/main.cpp
+  src/LivingWorld.h
+  src/LivingWorld.inl
+  src/Homestead.h
+  src/Homestead.inl
+  src/Disaster.h
+  src/Disaster.inl
+)
+
+set_source_files_properties(
+  src/LivingWorld.inl
+  src/Homestead.inl
+  src/Disaster.inl
+  PROPERTIES HEADER_FILE_ONLY TRUE
+)
+
 target_link_libraries(last_cup PRIVATE ${TEA_GLUT} OpenGL::GL OpenGL::GLU)
+
 if(TEA_FETCH_FREEGLUT)
   target_compile_definitions(last_cup PRIVATE FREEGLUT_STATIC)
   target_include_directories(last_cup PRIVATE "${freeglut_SOURCE_DIR}/include")
 endif()
+
 if(MINGW)
   target_link_options(last_cup PRIVATE -static -static-libgcc -static-libstdc++)
 endif()
+
 if(MSVC)
   target_compile_options(last_cup PRIVATE /W4)
 else()
   target_compile_options(last_cup PRIVATE -Wall -Wextra -Wpedantic)
 endif()
+
 enable_testing()
 add_test(NAME campaign_logic COMMAND last_cup --self-test)
+
+# Install & CPack packaging rules
+install(TARGETS last_cup RUNTIME DESTINATION .)
+install(FILES README.md LICENSE docs/THIRD_PARTY.md DESTINATION .)
+if(WIN32)
+  install(FILES Play.cmd DESTINATION .)
+endif()
+if(TEA_FETCH_FREEGLUT AND EXISTS "${freeglut_SOURCE_DIR}/COPYING")
+  install(FILES "${freeglut_SOURCE_DIR}/COPYING" DESTINATION . RENAME FreeGLUT-LICENSE.txt)
+endif()
+
+set(CPACK_PACKAGE_NAME "A-Last-Cup-of-Tea")
+set(CPACK_PACKAGE_VENDOR "shakil42051")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "A Last Cup of Tea - 3D OpenGL Interactive Simulation")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY ON)
+if(WIN32)
+  set(CPACK_GENERATOR "ZIP")
+else()
+  set(CPACK_GENERATOR "TGZ")
+endif()
+include(CPack)
