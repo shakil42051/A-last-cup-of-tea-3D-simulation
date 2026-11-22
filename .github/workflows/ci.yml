@@ -8,24 +8,36 @@ on:
 
 jobs:
   build-windows:
-    name: Windows (MSVC)
+    name: Windows (MinGW-w64)
     runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Setup MSYS2 MinGW-w64
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: false
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+
       - name: Configure CMake
         run: >
-          cmake -S . -B build
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
           -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-          -DCMAKE_POLICY_DEFAULT_CMP0091=NEW
-          -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
 
       - name: Build Release
-        run: cmake --build build --config Release --parallel
+        run: cmake --build build --parallel
 
       - name: Run self-tests
-        run: ctest --test-dir build -C Release --output-on-failure
+        run: ctest --test-dir build --output-on-failure
 
   build-linux:
     name: Linux (GCC)

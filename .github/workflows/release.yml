@@ -22,6 +22,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Setup MSYS2 MinGW-w64
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: false
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+
       - name: Determine release tag
         id: meta
         shell: pwsh
@@ -30,17 +40,19 @@ jobs:
           "tag=$tag" >> $env:GITHUB_OUTPUT
 
       - name: Configure CMake
+        shell: msys2 {0}
         run: >
-          cmake -S . -B build
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
           -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-          -DCMAKE_POLICY_DEFAULT_CMP0091=NEW
-          -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
 
       - name: Build Release
-        run: cmake --build build --config Release --parallel
+        shell: msys2 {0}
+        run: cmake --build build --parallel
 
       - name: Run self-tests
-        run: ctest --test-dir build -C Release --output-on-failure
+        shell: msys2 {0}
+        run: ctest --test-dir build --output-on-failure
 
       - name: Stage Windows package
         shell: pwsh
@@ -50,8 +62,8 @@ jobs:
           $stage = "release-artifacts/$pkgName"
           New-Item -ItemType Directory -Force -Path $stage | Out-Null
 
-          Copy-Item "build/Release/last_cup.exe" -Destination $stage
-          Copy-Item "build/Release/last_cup.exe" -Destination "release-artifacts/last_cup.exe"
+          Copy-Item "build/last_cup.exe" -Destination $stage
+          Copy-Item "build/last_cup.exe" -Destination "release-artifacts/last_cup.exe"
           Copy-Item "Play.cmd" -Destination $stage
           Copy-Item "README.md" -Destination $stage
           Copy-Item "LICENSE" -Destination $stage
